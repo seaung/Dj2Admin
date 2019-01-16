@@ -1,41 +1,58 @@
+from django.urls import reverse
+from djang.http import HttpResponseRedirect
 from django.shortcuts import render
 from django.views.generic.base import View
+from django.contrib.auth import authenticate, login, logout
+from django.contrib.auth.model import get_user_model
 from django.contrib.auth.backends import ModelBackend
-from django.contrib.auth import get_user_model
-from django.contrib.auth.hashers import check_password
+from django.contrib.auth.hashers import make_password
 from django.db.models import Q
-# Create your views here.
+
 
 
 User = get_user_model()
 
 
-class UserModelBackends(ModelBackend):
-    def authenticate(self, request, username=None, password=None, *args, **kwargs):
+
+class CustomeBackend(ModelBackend):
+    def authenticate(self, username=None, password=None, **kwargs):
         try:
             user = User.objects.get(Q(username=username) | Q(email=username))
-            if user.check_password(password=password):
+            if user.check_password(password):
                 return user
         except Exception as e:
             return None
 
 
-class HomeView(View):
-    def get(self, request):
-        return render(request, "home.html", locals())
-
 
 class SignInView(View):
     def get(self, request):
-        pass
+        redirect_url = request.GET.get('next', '')
+        return render(request, 'signin.html', {'redirect_url': redirect_url})
 
     def post(self, request):
-        pass
+        forms = SignInForm(request.POST)
+        if forms.is_valid():
+            username = request.POST.get('username', '')
+            password = request.POST.get('password', '')
 
+            user = authenticate(username=username, password=password)
 
-class SignUpView(View):
-    def get(self, request):
-        pass
+            if user is not None:
+                if user.is_active:
+                    login(request, user)
 
-    def post(self, request):
-        pass
+                    redirect_url = request.GET.get('next', '')
+
+                    if redirect_url:
+                        return HttpResponseRedirect(redirect_url)
+
+                    return HttpResponseRedirect(reverse('index'))
+                else:
+                    return render(request, 'signin.html', {'msg': 'user is not
+                                                           active'})
+            else:
+                return render(request, 'signin.html', {'msg': 'user is not
+                                                       extist.'})
+        return render(request, 'signin.html', {'forms': forms})
+
